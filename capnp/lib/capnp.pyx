@@ -1356,6 +1356,25 @@ cdef class _DynamicStructBuilder:
         self._is_written = True
         return ret
 
+    cpdef to_bytes_buffer(_DynamicStructBuilder self, bytearray buffer) except +reraise_kj_exception:
+        """Writes the struct's containing message to a provided bytearray in the unpacked binary format.
+
+        This is more efficient than returning a new bytes object.
+
+        :param bytearray buffer: The buffer to write the data into.
+        :rtype: None
+
+        :Raises: :exc:`KjException` if this isn't the message's root struct.
+        :Raises: ValueError if the buffer is not large enough.
+        """
+        self._check_write()
+        cdef _MessageBuilder builder = self._parent
+        array = schema_cpp.messageToFlatArray(deref(builder.thisptr))
+        cdef const char * ptr = <const char *> array.begin()
+        cdef Py_ssize_t data_size = 8 * array.size()
+
+        memcpy(<void *> (<char *> buffer), <const void *> ptr, data_size)
+
     cpdef to_segments(_DynamicStructBuilder self) except +reraise_kj_exception:
         """Returns the struct's containing message as a Python list of Python bytes objects.
 
@@ -1369,6 +1388,19 @@ cdef class _DynamicStructBuilder:
         cdef _MessageBuilder builder = self._parent
         segments = builder.get_segments_for_output()
         return segments
+
+    cpdef to_segments_buffered(_DynamicStructBuilder self, bytearray buffer) except +reraise_kj_exception:
+        """Returns the struct's containing message as a Python list of Python bytes objects.
+
+        This avoids making copies.
+
+        NB: This is not currently supported on PyPy.
+
+        :rtype: list
+        """
+        self._check_write()
+        cdef _MessageBuilder builder = self._parent
+        return builder.get_segments_for_output_buffered(buffer)
 
     cpdef _to_bytes_packed_helper(_DynamicStructBuilder self, word_count) except +reraise_kj_exception:
         cdef _MessageBuilder builder = self._parent
@@ -3679,6 +3711,40 @@ cdef class _MessageBuilder:
             res.append(segment_bytes)
         return res
 
+    cpdef get_segments_for_output_buffered(self, bytearray buffer) except +reraise_kj_exception:
+        segments = self.thisptr.getSegmentsForOutput()
+
+        segment = segments[0]
+
+        cdef const char * ptr = <const char *> segment.begin()
+        cdef Py_ssize_t segment_size = 8 * segment.size()
+
+        memcpy(<void *> (<char *> buffer), <const void *> ptr, segment_size)
+
+    """
+    cpdef get_segments_for_output_buffered(self, bytearray buffer) except +reraise_kj_exception:
+        segments = self.thisptr.getSegmentsForOutput()
+        cdef const char * ptr
+        cdef Py_ssize_t offset = 0
+        cdef Py_ssize_t segment_size
+
+        for i in range(0, segments.size()):
+            segment = segments[i]
+            ptr = <const char *> segment.begin()
+            segment_size = 8 * segment.size()
+
+            if offset + segment_size > len(buffer):
+                raise ValueError("Buffer is not large enough to hold all segments")
+
+            for j in range(segment_size):
+                # Convert to unsigned byte using bitwise AND
+                buffer[offset + j] = ptr[j] & 0xFF
+
+            offset += segment_size
+
+        # Return the actual size used in the buffer
+        return offset
+    """
     cpdef new_orphan(self, schema) except +reraise_kj_exception:
         """A method for instantiating Cap'n Proto orphans
 

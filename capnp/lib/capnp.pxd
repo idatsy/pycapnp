@@ -80,7 +80,9 @@ cdef class _DynamicStructBuilder:
 
     cdef _check_write(self)
     cpdef to_bytes(_DynamicStructBuilder self) except +reraise_kj_exception
+    cpdef to_bytes_buffer(_DynamicStructBuilder self, bytearray) except +reraise_kj_exception
     cpdef to_segments(_DynamicStructBuilder self) except +reraise_kj_exception
+    cpdef to_segments_buffered(_DynamicStructBuilder self, bytearray buffer) except +reraise_kj_exception
     cpdef _to_bytes_packed_helper(_DynamicStructBuilder self, word_count) except +reraise_kj_exception
     cpdef to_bytes_packed(_DynamicStructBuilder self) except +reraise_kj_exception
 
@@ -150,6 +152,7 @@ cdef class _MessageBuilder:
     cpdef get_root_as_any(self) except +reraise_kj_exception
     cpdef set_root(self, value) except +reraise_kj_exception
     cpdef get_segments_for_output(self) except +reraise_kj_exception
+    cpdef get_segments_for_output_buffered(self, bytearray) except +reraise_kj_exception
     cpdef new_orphan(self, schema) except +reraise_kj_exception
 
 cdef to_python_reader(C_DynamicValue.Reader self, object parent)
